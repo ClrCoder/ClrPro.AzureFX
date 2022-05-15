@@ -33,10 +33,18 @@ public class LocalCredentialBridgeIntegrationTests
             "http://host.docker.internal:40342/metadata/identity/oauth2/token");
         Environment.SetEnvironmentVariable("IMDS_ENDPOINT", "http://host.docker.internal:40342");
 
-        var clientAppBuilder = TestClientApplicationFactory.CreateClientAppHost(_testOutput, bridgeTestAppFactory.Server.CreateHandler());
+        const string credClientName = "CredClient";
+        var clientAppBuilder = TestClientApplicationFactory.CreateClientAppHost(_testOutput);
+        clientAppBuilder.ConfigureServices(
+            (_, services) =>
+            {
+                services.AddHttpClient(credClientName)
+                    .ConfigurePrimaryHttpMessageHandler(() => bridgeTestAppFactory.Server.CreateHandler());
+            });
+
         using var clientApp = clientAppBuilder.Build();
         var httpClientFactory = clientApp.Services.GetRequiredService<IHttpClientFactory>();
-        using var httpClient = httpClientFactory.CreateClient();
+        using var httpClient = httpClientFactory.CreateClient(credClientName);
         var msiCredential = new ManagedIdentityCredential(
             (string?)null,
             new TokenCredentialOptions

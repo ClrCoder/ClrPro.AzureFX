@@ -16,18 +16,15 @@ public static class TestClientApplicationFactory
     ///     Initializes the client application host builder.
     /// </summary>
     /// <param name="testOutput">The test output helper.</param>
-    /// <param name="primaryHttpMessageHandler">The primary http message handler for default http client.</param>
     /// <returns>The client application host builder.</returns>
     public static IHostBuilder CreateClientAppHost(
-        ITestOutputHelper testOutput,
-        HttpMessageHandler? primaryHttpMessageHandler)
+        ITestOutputHelper testOutput)
     {
         var hostBuilder = Host.CreateDefaultBuilder();
         hostBuilder.ConfigureServices(
             (_, services) =>
             {
-                services.AddHttpClient(string.Empty)
-                    .ConfigurePrimaryHttpMessageHandler(() => primaryHttpMessageHandler);
+                services.AddHttpClient();
             });
         hostBuilder.ConfigureLogging(logging => logging.AddXUnit2(testOutput));
         return hostBuilder;
