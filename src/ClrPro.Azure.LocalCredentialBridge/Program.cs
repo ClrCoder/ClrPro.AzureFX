@@ -1,16 +1,18 @@
 // Copyright (c) ClrCoder community. All Rights Reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
-using Azure.Core;
 using Azure.Identity;
+using ClrPro.Azure.LocalCredentialBridge;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
 
 [assembly: CLSCompliant(false)]
 
-const string AzureDefaultsOptionsPath = "AzureDefaults";
+const string azureDefaultsOptionsPath = "AzureDefaults";
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddMemoryCache();
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -19,11 +21,14 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.Configure<LocalCredentialBridgeOptions>(
+    builder.Configuration.GetSection(LocalCredentialBridgeOptions.OptionsPath));
+
 // Azure SDK don't apply "ClientOptions defaults" to TokenCredentialOptions.
 // We will allow to configure "DefaultAzureCredentialOptions" through IConfiguration, but will not apply "ClientOptions defaults".
 builder.Services.Configure<DefaultAzureCredentialOptions>(o => o.ExcludeManagedIdentityCredential = true);
 builder.Services.Configure<DefaultAzureCredentialOptions>(
-    builder.Configuration.GetSection($"{AzureDefaultsOptionsPath}:DefaultAzureCredential"));
+    builder.Configuration.GetSection($"{azureDefaultsOptionsPath}:DefaultAzureCredential"));
 
 // This is so painfully difficult and hackish.
 // In the Microsoft.Extensions.Azure the are no direct ways to obtain the same TokenCredentials as all clients uses.
@@ -31,7 +36,7 @@ builder.Services.Configure<DefaultAzureCredentialOptions>(
 // and then falling back to the factory registered with "UseCredential".
 builder.Services.AddTransient(
     sp => sp.GetRequiredService<AzureComponentFactory>()
-        .CreateTokenCredential(builder.Configuration.GetSection(AzureDefaultsOptionsPath)));
+        .CreateTokenCredential(builder.Configuration.GetSection(azureDefaultsOptionsPath)));
 
 // This is good thing, but it doesn't have customization of the DefaultAzureCredential.
 // AddAzureClients subsystem is fairly complex.
@@ -43,7 +48,7 @@ builder.Services.AddAzureClients(
                 sp.GetRequiredService<IOptionsMonitor<DefaultAzureCredentialOptions>>().CurrentValue));
 
         // Here the "ClientOptions defaults" are registered
-        azClients.ConfigureDefaults(builder.Configuration.GetSection(AzureDefaultsOptionsPath));
+        azClients.ConfigureDefaults(builder.Configuration.GetSection(azureDefaultsOptionsPath));
     });
 
 var app = builder.Build();

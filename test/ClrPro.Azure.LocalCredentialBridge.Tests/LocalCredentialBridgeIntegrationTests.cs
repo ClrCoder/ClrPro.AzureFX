@@ -4,13 +4,16 @@
 namespace ClrPro.Azure.LocalCredentialBridge.Tests;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using FluentAssertions;
 using global::Azure.Core.Pipeline;
 using global::Azure.Identity;
 using global::Azure.Security.KeyVault.Secrets;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit.Abstractions;
 
+[Trait("Category", "Manual")]
 public class LocalCredentialBridgeIntegrationTests
 {
     private readonly ITestOutputHelper _testOutput;
@@ -22,12 +25,32 @@ public class LocalCredentialBridgeIntegrationTests
 
     [Fact]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Reviewed")]
+    [SuppressMessage(
+        "StyleCop.CSharp.NamingRules",
+        "SA1312:Variable names should begin with lower-case letter",
+        Justification = "Reviewed.")]
     public async Task SimpleTest()
     {
-#pragma warning disable SA1312 // Variable names should begin with lower-case letter
-        var bridgeTestAppFactory = new BridgeTestAppFactory(_testOutput);
-        await using var _ = bridgeTestAppFactory.ConfigureAwait(false);
+        var baseAppFactory = new BridgeTestAppFactory(_testOutput);
+        await using var _ = baseAppFactory.ConfigureAwait(false);
+        var configuredAppFactory = baseAppFactory.WithWebHostBuilder(
+            hostBuilder =>
+            {
+                hostBuilder.ConfigureAppConfiguration(
+                    (_, config) =>
+                    {
+                        config.AddInMemoryCollection(
+                            new Dictionary<string, string>
+                            {
+                                {
+                                    "LocalCredentialBridge:RemoteTokensPath",
+                                    Environment.ExpandEnvironmentVariables("%USERPROFILE%/.LocalCredentialBridgeTokens")
+                                },
+                            });
+                    });
+            });
 
+        await using var __ = configuredAppFactory.ConfigureAwait(false);
         Environment.SetEnvironmentVariable(
             "IDENTITY_ENDPOINT",
             "http://host.docker.internal:40342/metadata/identity/oauth2/token");
@@ -39,7 +62,7 @@ public class LocalCredentialBridgeIntegrationTests
             (_, services) =>
             {
                 services.AddHttpClient(credClientName)
-                    .ConfigurePrimaryHttpMessageHandler(() => bridgeTestAppFactory.Server.CreateHandler());
+                    .ConfigurePrimaryHttpMessageHandler(() => configuredAppFactory.Server.CreateHandler());
             });
 
         using var clientApp = clientAppBuilder.Build();
@@ -63,5 +86,19 @@ public class LocalCredentialBridgeIntegrationTests
         var secretClient = new SecretClient(new Uri("https://kv-identity-tests.vault.azure.net/"), defaultCredential);
         var testSecret = await secretClient.GetSecretAsync("test-secret").ConfigureAwait(false);
         testSecret.Value.Value.Should().Be("42");
+    }
+
+    [Fact]
+    public async Task AuthChallengeShouldBeRaised()
+    {
+        var bridgeTestAppFactory = new BridgeTestAppFactory(_testOutput);
+        await using var _ = bridgeTestAppFactory.ConfigureAwait(false);
+        using var client = bridgeTestAppFactory.Server.CreateClient();
+        var response = await client
+            .GetAsync(new Uri("http://host.docker.internal:40342/metadata/identity/oauth2/token?resource=tst"))
+            .ConfigureAwait(false);
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var contentString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        contentString.Should().StartWith("WWWAuthenticate");
     }
 }

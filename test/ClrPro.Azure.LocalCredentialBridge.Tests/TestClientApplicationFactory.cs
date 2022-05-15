@@ -5,6 +5,7 @@ namespace ClrPro.Azure.LocalCredentialBridge.Tests;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 /// <summary>
@@ -26,7 +27,7 @@ public static class TestClientApplicationFactory
             {
                 services.AddHttpClient();
             });
-        hostBuilder.ConfigureLogging(logging => logging.AddXUnit2(testOutput));
+        hostBuilder.ConfigureLogging(logging => logging.AddXUnit(testOutput));
         return hostBuilder;
     }
 }

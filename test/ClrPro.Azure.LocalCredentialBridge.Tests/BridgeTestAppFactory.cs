@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 /// <summary>
@@ -37,7 +38,7 @@ internal class BridgeTestAppFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(
             (_, services) =>
             {
-                services.AddLogging(logging => logging.AddXUnit2(_testOutput));
+                services.AddLogging(logging => logging.AddXUnit(_testOutput));
             });
     }
 }
