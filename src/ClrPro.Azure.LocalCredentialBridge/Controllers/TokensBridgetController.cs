@@ -117,7 +117,8 @@ public class TokensBridgetController : ControllerBase
             new TokenResponse
             {
                 access_token = token.Token,
-                expires_on = token.ExpiresOn.ToString(CultureInfo.InvariantCulture),
+                expires_on = token.ExpiresOn.ToUnixTimeSeconds(),
+                resource = resource
             });
     }
 
@@ -171,6 +172,11 @@ public class TokensBridgetController : ControllerBase
         /// <summary>
         ///     The expiration time.
         /// </summary>
-        public string? expires_on { get; set; }
+        public long? expires_on { get; set; }
+
+        /// <summary>
+        ///     The resource.
+        /// </summary>
+        public string? resource { get; set; }
     }
 }
