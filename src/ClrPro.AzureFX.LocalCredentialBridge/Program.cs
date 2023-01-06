@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
 using Azure.Identity;
-using ClrPro.Azure.LocalCredentialBridge;
+using ClrPro.AzureFX.LocalCredentialBridge;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
 

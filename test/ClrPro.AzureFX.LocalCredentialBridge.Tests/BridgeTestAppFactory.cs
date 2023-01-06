@@ -1,7 +1,7 @@
 // Copyright (c) ClrCoder community. All Rights Reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
-namespace ClrPro.Azure.LocalCredentialBridge.Tests;
+namespace ClrPro.AzureFX.LocalCredentialBridge.Tests;
 
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

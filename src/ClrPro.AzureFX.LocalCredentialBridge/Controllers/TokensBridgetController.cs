@@ -1,13 +1,13 @@
 // Copyright (c) ClrCoder community. All Rights Reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
-namespace ClrPro.Azure.LocalCredentialBridge.Controllers;
+namespace ClrPro.AzureFX.LocalCredentialBridge.Controllers;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Security.Cryptography;
-using global::Azure.Core;
-using global::Azure.Identity;
+using Azure.Core;
+using Azure.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;

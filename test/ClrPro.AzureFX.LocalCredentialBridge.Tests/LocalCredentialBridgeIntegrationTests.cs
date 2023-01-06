@@ -1,14 +1,14 @@
 // Copyright (c) ClrCoder community. All Rights Reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
-namespace ClrPro.Azure.LocalCredentialBridge.Tests;
+namespace ClrPro.AzureFX.LocalCredentialBridge.Tests;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using Azure.Core.Pipeline;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using FluentAssertions;
-using global::Azure.Core.Pipeline;
-using global::Azure.Identity;
-using global::Azure.Security.KeyVault.Secrets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit.Abstractions;
