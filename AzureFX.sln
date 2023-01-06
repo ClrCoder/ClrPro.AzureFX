@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.2.32505.173
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClrPro.Azure.LocalCredentialBridge", "src\ClrPro.Azure.LocalCredentialBridge\ClrPro.Azure.LocalCredentialBridge.csproj", "{73E4F0BA-7E55-4DE9-8D9E-E9D98292F17E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClrPro.AzureFX.LocalCredentialBridge", "src\ClrPro.AzureFX.LocalCredentialBridge\ClrPro.AzureFX.LocalCredentialBridge.csproj", "{73E4F0BA-7E55-4DE9-8D9E-E9D98292F17E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".root", ".root", "{CFF870A2-6AB4-47E9-9459-6B2E3EDDBCB8}"
 	ProjectSection(SolutionItems) = preProject
@@ -17,7 +17,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".root", ".root", "{CFF870A2
 		stylecop.json = stylecop.json
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClrPro.Azure.LocalCredentialBridge.Tests", "test\ClrPro.Azure.LocalCredentialBridge.Tests\ClrPro.Azure.LocalCredentialBridge.Tests.csproj", "{4117BB3D-87C6-45D2-AA34-F2AEB7A51E44}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ClrPro.AzureFX.LocalCredentialBridge.Tests", "test\ClrPro.AzureFX.LocalCredentialBridge.Tests\ClrPro.AzureFX.LocalCredentialBridge.Tests.csproj", "{4117BB3D-87C6-45D2-AA34-F2AEB7A51E44}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
