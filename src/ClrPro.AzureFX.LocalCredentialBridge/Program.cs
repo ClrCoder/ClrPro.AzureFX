@@ -12,6 +12,8 @@ const string azureDefaultsOptionsPath = "AzureDefaults";
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.UseUrls("http://+:40342");
+
 builder.Services.AddMemoryCache();
 
 // Add services to the container.
