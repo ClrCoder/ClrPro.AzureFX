@@ -70,7 +70,7 @@ public class TokensBridgetController : ControllerBase
             var authHeader = Request.Headers.Authorization;
             if (string.IsNullOrWhiteSpace(authHeader))
             {
-                var fileName = Guid.NewGuid().ToString();
+                var fileName = $"{Guid.NewGuid().ToString()}.key";
                 var localFileName = Path.Combine(localPath, fileName);
                 var remoteFileName = Path.Combine(options.RemoteTokensPath!, fileName);
 
