@@ -4,12 +4,9 @@
 namespace ClrPro.AzureFX.LocalCredentialBridge.Controllers;
 
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Security.Cryptography;
 using Azure.Core;
 using Azure.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 /// <summary>
@@ -20,8 +17,8 @@ using Microsoft.Extensions.Options;
 public class TokensBridgetController : ControllerBase
 {
     private readonly ILogger<TokensBridgetController> _logger;
-    private readonly IMemoryCache _memoryCache;
-    private readonly IOptionsMonitor<LocalCredentialBridgeOptions> _optionsMonitor;
+    private readonly ChallengeStore _challengeStore;
+    private readonly LocalCredentialBridgeOptions _options;
     private readonly TokenCredential _tokenCredential;
 
     /// <summary>
@@ -32,13 +29,14 @@ public class TokensBridgetController : ControllerBase
         "SA1611:Element parameters should be documented",
         Justification = "DI Dependencies.")]
     public TokensBridgetController(
-        IMemoryCache memoryCache,
-        IOptionsMonitor<LocalCredentialBridgeOptions> optionsMonitor,
+        ChallengeStore challengeStore,
+        IOptions<LocalCredentialBridgeOptions> options,
         TokenCredential tokenCredential,
         ILogger<TokensBridgetController> logger)
     {
-        _memoryCache = memoryCache;
-        _optionsMonitor = optionsMonitor;
+        ArgumentNullException.ThrowIfNull(options);
+        _challengeStore = challengeStore;
+        _options = options.Value;
         _tokenCredential = tokenCredential;
         _logger = logger;
     }
@@ -49,107 +47,74 @@ public class TokensBridgetController : ControllerBase
     /// <param name="resource">The resource to get token for.</param>
     /// <returns>The IMDS response with token or WWWAuthenticate challenge request.</returns>
     [HttpGet("metadata/identity/oauth2/token")]
-    [SuppressMessage("Globalization", "CA1307:Specify StringComparison for clarity", Justification = "Reviewed.")]
-    [SuppressMessage("Globalization", "CA1310:Specify StringComparison for correctness", Justification = "Reviewed.")]
     public async Task<ActionResult> Get(string resource)
     {
         if (string.IsNullOrWhiteSpace(resource))
         {
-            throw new ArgumentNullException(nameof(resource));
+            return BadRequest(new { error = "invalid_resource", error_description = "A nonempty resource is required." });
         }
 
-        var options = _optionsMonitor.CurrentValue;
-        if (options.UseFileTokenAuth)
+        var cancellationToken = HttpContext.RequestAborted;
+        if (_options.UseFileTokenAuth)
         {
-            var localPath = Environment.ExpandEnvironmentVariables(options.LocalTokensPath!);
-            if (!Directory.Exists(localPath))
-            {
-                Directory.CreateDirectory(localPath);
-            }
-
             var authHeader = Request.Headers.Authorization;
-            if (string.IsNullOrWhiteSpace(authHeader))
+            if (authHeader.Count == 0)
             {
-                var fileName = $"{Guid.NewGuid().ToString()}.key";
-                var localFileName = Path.Combine(localPath, fileName);
-                var remoteFileName = Path.Combine(options.RemoteTokensPath!, fileName);
-
-                // If it's unix path
-                if (remoteFileName.Contains('/'))
+                string? remoteFile;
+                try
                 {
-                    remoteFileName = remoteFileName.Replace('\\', '/');
+                    remoteFile = await _challengeStore.CreateAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    _logger.LogError(exception, "Could not create an authentication challenge file.");
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "challenge_unavailable" });
                 }
 
-                await CreateTokenFileAndAddToCache(localFileName, TimeSpan.FromSeconds(options.AuthTokenTimeoutSeconds))
-                    .ConfigureAwait(false);
+                if (remoteFile is null)
+                {
+                    Response.Headers.RetryAfter = "1";
+                    return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "challenge_limit_reached" });
+                }
 
-                Response.Headers.Add("WWW-Authenticate", $"TokenFile={remoteFileName}");
+                Response.Headers.WWWAuthenticate = $"TokenFile={remoteFile}";
                 return Unauthorized();
             }
-            else
-            {
-                var authPassed = false;
-                string authHeaderString = authHeader;
-                if (authHeaderString.StartsWith("Basic "))
-                {
-                    var parts = authHeaderString.Split(" ", 2);
-                    if (parts.Length == 2)
-                    {
-                        var secret = parts[1];
-                        if (_memoryCache.TryGetValue(secret, out _))
-                        {
-                            _memoryCache.Remove(secret);
-                            authPassed = true;
-                        }
-                    }
-                }
 
-                if (!authPassed)
-                {
-                    return Unauthorized();
-                }
+            var header = authHeader.Count == 1 ? authHeader[0] : null;
+            if (header is null
+                || !header.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase)
+                || !await _challengeStore.RedeemAsync(header[6..], cancellationToken).ConfigureAwait(false))
+            {
+                return Unauthorized();
             }
         }
 
-        var token = await _tokenCredential.GetTokenAsync(new TokenRequestContext(new[] { resource }), default)
-            .ConfigureAwait(true);
+        AccessToken token;
+        try
+        {
+            token = await _tokenCredential.GetTokenAsync(new TokenRequestContext([resource]), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (CredentialUnavailableException)
+        {
+            _logger.LogWarning("The configured Azure credential is unavailable. Sign in to the configured credential source.");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "credential_unavailable" });
+        }
+        catch (AuthenticationFailedException)
+        {
+            _logger.LogWarning("Azure credential authentication failed. Check the signed-in account.");
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = "authentication_failed" });
+        }
+
+        Response.Headers.CacheControl = "no-store";
         return Ok(
             new TokenResponse
             {
                 access_token = token.Token,
                 expires_on = token.ExpiresOn.ToUnixTimeSeconds(),
-                resource = resource
+                resource = resource,
             });
-    }
-
-    private static void DeleteTokenFile(string fileName)
-    {
-        try
-        {
-            System.IO.File.Delete(fileName);
-        }
-        catch
-        {
-            // Do nothing.
-        }
-    }
-
-    private async Task CreateTokenFileAndAddToCache(string localFileName, TimeSpan cacheTimeout)
-    {
-        var randomValue = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        await System.IO.File.WriteAllTextAsync(localFileName, randomValue).ConfigureAwait(false);
-        using var cacheEntry = _memoryCache.CreateEntry(randomValue);
-        cacheEntry.AbsoluteExpiration =
-            DateTimeOffset.UtcNow + cacheTimeout;
-        cacheEntry.PostEvictionCallbacks.Add(
-            new PostEvictionCallbackRegistration
-            {
-                EvictionCallback = (key, value, reason, state) =>
-                {
-                    DeleteTokenFile((string)value);
-                },
-            });
-        cacheEntry.Value = localFileName;
     }
 
     /// <summary>

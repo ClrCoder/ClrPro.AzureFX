@@ -69,7 +69,7 @@ $ErrorActionPreference = "Stop"
 $deadline = [DateTime]::UtcNow.AddSeconds(60)
 while ([DateTime]::UtcNow -lt $deadline) {
     try {
-        $response = Invoke-WebRequest http://localhost:40342/swagger/v1/swagger.json -TimeoutSec 5
+        $response = Invoke-WebRequest http://localhost:40342/health -TimeoutSec 5
         if ($response.StatusCode -eq 200) { exit 0 }
     } catch [System.Net.Http.HttpRequestException] {
         Start-Sleep -Seconds 1

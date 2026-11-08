@@ -39,7 +39,32 @@ Get-AzContext
 
 Complete the device-code sign-in in your browser. The Az account and token cache are stored in the `clrpro-azurefx-az-profile` volume mounted at `/root/.Azure`. To change the signed-in account, run `Disconnect-AzAccount` and sign in again from the container.
 
-The bridge uses `DefaultAzureCredential`, which can obtain tokens from the signed-in Azure PowerShell context. It exposes the managed-identity token endpoint on port `40342` inside the Docker network and uses a short-lived file-token challenge. The token exchange uses a separate shared volume so clients can read the challenge file without receiving the Az profile volume.
+The sidecar explicitly uses `AzurePowerShellCredential`, so tokens come from the signed-in Azure PowerShell context rather than another credential in the default chain. It exposes the managed-identity token endpoint on port `40342` inside the Docker network and uses a short-lived file-token challenge. The token exchange uses a separate shared volume so clients can read the challenge file without receiving the Az profile volume.
+
+## Bridge configuration and lifecycle
+
+Configure options under `LocalCredentialBridge` in appsettings or with `LocalCredentialBridge__...` environment variables:
+
+| Option | Default | Behavior |
+|---|---|---|
+| `CredentialSource` | `DefaultAzureCredential`; Docker image overrides to `AzurePowerShell` | Selects the credential source. Default mode retains the existing `AzureDefaults` configuration. |
+| `UseFileTokenAuth` | `true` | Requires the Arc token-file challenge; keep enabled for the sidecar. |
+| `LocalTokensPath` | `.LocalCredentialBridgeTokens` under the user's home directory | Absolute local challenge directory; Docker overrides to `/var/opt/azcmagent/tokens`. |
+| `RemoteTokensPath` | `/var/opt/azcmagent/tokens` | Absolute path visible to clients. |
+| `AuthTokenTimeoutSeconds` | `10` | Challenge validity, from 1 to 3600 seconds. |
+| `MaxPendingChallenges` | `256` | Maximum pending files, including consumed/expired files awaiting deletion. |
+
+Configuration is validated at startup and remains fixed for the process lifetime; restart the bridge to apply changes. Challenges are consumed atomically, so a secret cannot authorize multiple concurrent requests. A background task checks expired files every second; deletion failures are logged and retried. Shutdown deletes pending files, and startup removes leftover GUID-named `.key` files from the dedicated token directory. Other filenames are left alone. Do not share this directory between multiple running bridges or store unrelated GUID-named `.key` files there.
+
+At capacity the endpoint returns HTTP 429 with `Retry-After: 1`. Challenge-file failures and unavailable credentials return 503, authentication failures return 502, and missing/blank resources return 400. Successful token responses use `Cache-Control: no-store`. Request cancellation is propagated to challenge creation and Azure token acquisition.
+
+`GET /health` reports HTTP service health without requesting an Azure token. It does not prove the account is signed in or authorized; use the Compose demo for that.
+
+Run deterministic protocol tests (no Azure account or Docker required):
+
+```powershell
+dotnet test AzureFX.sln --filter "Category!=Manual"
+```
 
 ## Verify the Managed Identity flow
 

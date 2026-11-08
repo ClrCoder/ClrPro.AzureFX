@@ -24,7 +24,8 @@ public class LocalCredentialBridgeOptions
     /// <remarks>
     ///     The path support variables expansion.
     /// </remarks>
-    public string? LocalTokensPath { get; set; } = "%USERPROFILE%/.LocalCredentialBridgeTokens";
+    public string? LocalTokensPath { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".LocalCredentialBridgeTokens");
 
     /// <summary>
     ///     The path mapped to the bridge client OS.
@@ -35,4 +36,14 @@ public class LocalCredentialBridgeOptions
     ///     The timeout for the authentication token.
     /// </summary>
     public int AuthTokenTimeoutSeconds { get; set; } = 10;
+
+    /// <summary>
+    ///     Maximum number of pending challenge files, including files awaiting cleanup.
+    /// </summary>
+    public int MaxPendingChallenges { get; set; } = 256;
+
+    /// <summary>
+    ///     Credential source: DefaultAzureCredential or AzurePowerShell.
+    /// </summary>
+    public string CredentialSource { get; set; } = "DefaultAzureCredential";
 }

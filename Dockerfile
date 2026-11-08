@@ -29,6 +29,7 @@ RUN pwsh -NoLogo -NoProfile -Command \
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:40342 \
+    LocalCredentialBridge__CredentialSource=AzurePowerShell \
     LocalCredentialBridge__LocalTokensPath=/var/opt/azcmagent/tokens \
     LocalCredentialBridge__RemoteTokensPath=/var/opt/azcmagent/tokens
 
