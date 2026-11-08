@@ -1,0 +1,27 @@
+services:
+  managed-identity-demo:
+    image: ${AZUREFX_DEMO_IMAGE:-clrpro/azurefx-managed-identity-demo:local}
+    build:
+      context: ./ManagedIdentityDemo
+    environment:
+      IDENTITY_ENDPOINT: http://${AZUREFX_BRIDGE_CONTAINER:-clrpro-azurefx-bridge}:40342/metadata/identity/oauth2/token
+      IMDS_ENDPOINT: http://${AZUREFX_BRIDGE_CONTAINER:-clrpro-azurefx-bridge}:40342
+      EXPECTED_TENANT_ID: ${AZUREFX_EXPECTED_TENANT_ID:-}
+      EXPECTED_CLIENT_ID: ${AZUREFX_EXPECTED_CLIENT_ID:-}
+    networks:
+      - azurefx
+    volumes:
+      - type: volume
+        source: token-files
+        target: /var/opt/azcmagent/tokens
+        read_only: true
+
+networks:
+  azurefx:
+    name: ${AZUREFX_NETWORK:-clrpro-azurefx}
+    external: true
+
+volumes:
+  token-files:
+    name: ${AZUREFX_TOKEN_VOLUME:-clrpro-azurefx-token-files}
+    external: true

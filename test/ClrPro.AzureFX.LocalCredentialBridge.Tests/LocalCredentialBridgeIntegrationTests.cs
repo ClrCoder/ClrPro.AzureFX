@@ -98,7 +98,11 @@ public class LocalCredentialBridgeIntegrationTests
             .GetAsync(new Uri("http://host.docker.internal:40342/metadata/identity/oauth2/token?resource=tst"))
             .ConfigureAwait(false);
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        var contentString = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        contentString.Should().StartWith("WWWAuthenticate");
+        response.Headers.Should().ContainKey("WWW-Authenticate");
+        response.Headers.GetValues("WWW-Authenticate")
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .StartWith("TokenFile=");
     }
 }

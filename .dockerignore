@@ -1,0 +1,7 @@
+**/bin
+**/obj
+.git
+.vs
+.idea
+artifacts
+e2e-credentials.json
