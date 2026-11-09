@@ -3,6 +3,7 @@ param(
     [string] $ContainerName = "clrpro-azurefx-bridge",
     [string] $NetworkName = "clrpro-azurefx",
     [string] $AzProfileVolume = "clrpro-azurefx-az-profile",
+    [string] $AzTokenCacheVolume = "clrpro-azurefx-az-token-cache",
     [string] $TokenFilesVolume = "clrpro-azurefx-token-files",
     [switch] $Rebuild
 )
@@ -29,7 +30,7 @@ if ($LASTEXITCODE -ne 0) {
     Invoke-Docker network create $NetworkName
 }
 
-foreach ($volumeName in @($AzProfileVolume, $TokenFilesVolume)) {
+foreach ($volumeName in @($AzProfileVolume, $AzTokenCacheVolume, $TokenFilesVolume)) {
     & docker volume inspect $volumeName *> $null
     if ($LASTEXITCODE -ne 0) {
         Invoke-Docker volume create $volumeName
@@ -60,6 +61,7 @@ Invoke-Docker run `
     --network $NetworkName `
     --restart unless-stopped `
     --mount "type=volume,source=$AzProfileVolume,target=/root/.Azure" `
+    --mount "type=volume,source=$AzTokenCacheVolume,target=/root/.local/share/.IdentityService" `
     --mount "type=volume,source=$TokenFilesVolume,target=/var/opt/azcmagent/tokens" `
     $ImageName
 
