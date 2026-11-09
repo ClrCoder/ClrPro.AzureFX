@@ -1,5 +1,5 @@
 services:
-  managed-identity-demo:
+  managed-identity-demo: &identity-client
     image: ${AZUREFX_DEMO_IMAGE:-clrpro/azurefx-managed-identity-demo:local}
     build:
       context: ./ManagedIdentityDemo
@@ -15,6 +15,13 @@ services:
         source: token-files
         target: /var/opt/azcmagent/tokens
         read_only: true
+
+  azure-core-163-demo:
+    <<: *identity-client
+    image: ${AZUREFX_CORE163_IMAGE:-clrpro/azurefx-core163-demo:local}
+    build:
+      context: ..
+      dockerfile: test/AzureCore163Demo/Dockerfile
 
 networks:
   azurefx:

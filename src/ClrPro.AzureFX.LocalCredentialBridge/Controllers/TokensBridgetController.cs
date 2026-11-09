@@ -112,6 +112,7 @@ public class TokensBridgetController : ControllerBase
             new TokenResponse
             {
                 access_token = token.Token,
+                token_type = "Bearer",
                 expires_on = token.ExpiresOn.ToUnixTimeSeconds(),
                 resource = resource,
             });
@@ -133,6 +134,11 @@ public class TokensBridgetController : ControllerBase
         ///     The token value.
         /// </summary>
         public string? access_token { get; set; }
+
+        /// <summary>
+        ///     The OAuth access token type.
+        /// </summary>
+        public string? token_type { get; set; }
 
         /// <summary>
         ///     The expiration time.

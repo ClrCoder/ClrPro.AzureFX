@@ -36,6 +36,7 @@ public class BridgeProtocolTests
         Assert.True(response.Headers.CacheControl!.NoStore);
         var token = await response.Content.ReadFromJsonAsync<TokenDto>().ConfigureAwait(false);
         Assert.Equal("test-access-token", token!.AccessToken);
+        Assert.Equal("Bearer", token.TokenType);
         Assert.Equal("https://management.azure.com/", token.Resource);
         using var replay = await SendAuthenticatedAsync(client, secret).ConfigureAwait(false);
         Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
@@ -400,6 +401,9 @@ public class BridgeProtocolTests
     {
         [JsonPropertyName("access_token")]
         public string? AccessToken { get; set; }
+
+        [JsonPropertyName("token_type")]
+        public string? TokenType { get; set; }
 
         public string? Resource { get; set; }
     }

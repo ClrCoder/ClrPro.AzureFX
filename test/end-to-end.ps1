@@ -9,6 +9,7 @@ $profileVolume = "clrpro-azurefx-e2e-az-profile"
 $tokenVolume = "clrpro-azurefx-e2e-token-files"
 $bridgeImage = "clrpro/azurefx-local-credential-bridge:e2e"
 $demoImage = "clrpro/azurefx-managed-identity-demo:e2e"
+$core163Image = "clrpro/azurefx-core163-demo:e2e"
 $composeProject = "clrpro-azurefx-e2e"
 
 function Invoke-Docker {
@@ -24,6 +25,11 @@ function Invoke-Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]] $ComposeArguments)
 
     Invoke-Docker compose --project-name $composeProject --file $composeFile @ComposeArguments
+}
+
+function Test-IdentityClients {
+    Invoke-Compose run --rm --no-deps managed-identity-demo
+    Invoke-Compose run --rm --no-deps azure-core-163-demo
 }
 
 function Remove-TestResources {
@@ -47,7 +53,7 @@ function Remove-TestResources {
     }
 
     $images = @(Invoke-Docker image ls --format "{{.Repository}}:{{.Tag}}")
-    foreach ($name in @($bridgeImage, $demoImage)) {
+    foreach ($name in @($bridgeImage, $demoImage, $core163Image)) {
         if ($images -contains $name) {
             Invoke-Docker image rm $name
         }
@@ -55,9 +61,11 @@ function Remove-TestResources {
 }
 
 function Start-TestBridge {
+    param([switch] $Rebuild)
+
     & pwsh -NoLogo -NoProfile -File (Join-Path $repoRoot "start-container.ps1") `
         -ImageName $bridgeImage -ContainerName $container -NetworkName $network `
-        -AzProfileVolume $profileVolume -TokenFilesVolume $tokenVolume
+        -AzProfileVolume $profileVolume -TokenFilesVolume $tokenVolume -Rebuild:$Rebuild
     if ($LASTEXITCODE -ne 0) {
         throw "The sidecar startup script failed."
     }
@@ -113,6 +121,7 @@ $composeEnvironment = @{
     AZUREFX_NETWORK = $network
     AZUREFX_TOKEN_VOLUME = $tokenVolume
     AZUREFX_DEMO_IMAGE = $demoImage
+    AZUREFX_CORE163_IMAGE = $core163Image
     AZUREFX_EXPECTED_TENANT_ID = $credentials.TenantId
     AZUREFX_EXPECTED_CLIENT_ID = $credentials.ClientId
 }
@@ -156,20 +165,24 @@ if (-not (Get-AzContext)) { throw "Azure PowerShell did not save an account cont
     }
 
     Write-Host "Building and running the Compose ManagedIdentityCredential client."
-    Invoke-Compose build managed-identity-demo
-    Invoke-Compose run --rm --no-deps managed-identity-demo
+    Invoke-Compose build managed-identity-demo azure-core-163-demo
+    Test-IdentityClients
 
     Write-Host "Recreating the bridge with the persisted profile, without signing in again."
-    Invoke-Docker container rm --force $container
-    Start-TestBridge
+    $originalId = Invoke-Docker container inspect --format "{{.Id}}" $container
+    Start-TestBridge -Rebuild
+    $rebuiltId = Invoke-Docker container inspect --format "{{.Id}}" $container
+    if ($originalId -eq $rebuiltId) {
+        throw "Rebuild did not recreate the bridge container."
+    }
     Wait-TestBridge
-    Invoke-Compose run --rm --no-deps managed-identity-demo
+    Test-IdentityClients
 
     Write-Host "Verifying startup of an existing stopped bridge."
     Invoke-Docker container stop $container
     Start-TestBridge
     Wait-TestBridge
-    Invoke-Compose run --rm --no-deps managed-identity-demo
+    Test-IdentityClients
 
     Write-Host "End-to-end test passed: token identity, profile persistence, and startup behavior."
 } finally {

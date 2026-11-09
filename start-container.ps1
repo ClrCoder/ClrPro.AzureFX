@@ -3,7 +3,8 @@ param(
     [string] $ContainerName = "clrpro-azurefx-bridge",
     [string] $NetworkName = "clrpro-azurefx",
     [string] $AzProfileVolume = "clrpro-azurefx-az-profile",
-    [string] $TokenFilesVolume = "clrpro-azurefx-token-files"
+    [string] $TokenFilesVolume = "clrpro-azurefx-token-files",
+    [switch] $Rebuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,14 +38,20 @@ foreach ($volumeName in @($AzProfileVolume, $TokenFilesVolume)) {
 
 $running = & docker container inspect --format "{{.State.Running}}" $ContainerName 2>$null
 if ($LASTEXITCODE -eq 0) {
-    if ($running -eq "true") {
+    if ($Rebuild) {
+        if ($running -eq "true") {
+            Invoke-Docker container stop --timeout 30 $ContainerName
+        }
+        Invoke-Docker container rm $ContainerName
+        Write-Host "Recreating '$ContainerName' with the rebuilt image; named volumes are preserved."
+    } elseif ($running -eq "true") {
         Write-Host "Container '$ContainerName' is already running; leaving it unchanged."
         exit 0
+    } else {
+        Invoke-Docker container start $ContainerName
+        Write-Host "Started existing container '$ContainerName'."
+        exit 0
     }
-
-    Invoke-Docker container start $ContainerName
-    Write-Host "Started existing container '$ContainerName'."
-    exit 0
 }
 
 Invoke-Docker run `

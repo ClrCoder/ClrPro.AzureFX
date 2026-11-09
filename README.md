@@ -22,11 +22,10 @@ From the repository root, run:
 
 By default this builds `clrpro/azurefx-local-credential-bridge:local`, creates (if needed) the `clrpro-azurefx` network and the `clrpro-azurefx-az-profile` and `clrpro-azurefx-token-files` volumes, and starts `clrpro-azurefx-bridge`. The bridge does not publish its port to the host; it is reachable to containers attached to its Docker network. Running the script again does not restart an already running bridge. If the existing container is stopped, the script starts it.
 
-If you change the script's resource-name parameters, update the matching external network, volume, and bridge hostname in your Compose file. To rebuild the container after changing the bridge source, remove the existing container and rerun the script; the named volumes (including the signed-in account) are preserved:
+If you change the script's resource-name parameters, update the matching external network, volume, and bridge hostname in your Compose file. To deploy updated bridge sources, use `-Rebuild`. The image is built successfully before the existing container is stopped and recreated; the named volumes (including the signed-in account) and network are preserved:
 
 ```powershell
-docker rm --force clrpro-azurefx-bridge
-./start-container.ps1
+./start-container.ps1 -Rebuild
 ```
 
 Sign in from PowerShell inside the running sidecar:
@@ -56,7 +55,7 @@ Configure options under `LocalCredentialBridge` in appsettings or with `LocalCre
 
 Configuration is validated at startup and remains fixed for the process lifetime; restart the bridge to apply changes. Challenges are consumed atomically, so a secret cannot authorize multiple concurrent requests. A background task checks expired files every second; deletion failures are logged and retried. Shutdown deletes pending files, and startup removes leftover GUID-named `.key` files from the dedicated token directory. Other filenames are left alone. Do not share this directory between multiple running bridges or store unrelated GUID-named `.key` files there.
 
-At capacity the endpoint returns HTTP 429 with `Retry-After: 1`. Challenge-file failures and unavailable credentials return 503, authentication failures return 502, and missing/blank resources return 400. Successful token responses use `Cache-Control: no-store`. Request cancellation is propagated to challenge creation and Azure token acquisition.
+At capacity the endpoint returns HTTP 429 with `Retry-After: 1`. Challenge-file failures and unavailable credentials return 503, authentication failures return 502, and missing/blank resources return 400. Successful token responses include `token_type: "Bearer"` and use `Cache-Control: no-store`. Request cancellation is propagated to challenge creation and Azure token acquisition.
 
 `GET /health` reports HTTP service health without requesting an Azure token. It does not prove the account is signed in or authorized; use the Compose demo for that.
 
@@ -68,7 +67,15 @@ dotnet test AzureFX.sln --filter "Category!=Manual"
 
 ## Verify the Managed Identity flow
 
-The included demo is a .NET application that requests an Azure Resource Manager token using `ManagedIdentityCredential`. It exercises the Azure SDK's managed identity challenge flow against the bridge.
+The included demo runs `examples/ManagedIdentityDemo/Program.cs` directly in a .NET 10 SDK container, without a `.csproj`. Its `#:package` directives select Azure.Identity 1.21.0 and Azure.Core 1.63.0. It requests an Azure Resource Manager token using `DefaultAzureCredential`. With no direct credentials supplied to the client container, this exercises the Azure SDK's managed identity challenge flow against the bridge.
+
+An additional compatibility client runs `test/AzureCore163Demo/auth.cs` directly in a .NET 10 SDK container, without a `.csproj`. Its `#:package Azure.Core@1.63.0` directive selects **Azure.Core 1.63.0**, using the `ManagedIdentityCredential` now provided by Azure.Core itself (no Azure.Identity dependency). It checks token validity and the expected tenant/application identity:
+
+```powershell
+docker compose -f examples/docker-compose.yml run --build --rm azure-core-163-demo
+```
+
+Both clients print their loaded Azure SDK versions, never their tokens. The automated E2E test runs both clients during initial sign-in, after bridge recreation, and after stop/start.
 
 From the repository root, run:
 
@@ -137,9 +144,9 @@ The credentials file is excluded from Git and the Docker build context, and is p
 
 The script wipes its dedicated Docker resources before each run, builds the bridge and demo, signs in through `Connect-AzAccount`, and requests a real token through the Compose client's `ManagedIdentityCredential`. It checks that the token is nonempty, unexpired, and has the expected tenant and application claims. Claim inspection is an identity assertion, not cryptographic token-signature verification.
 
-It then recreates the bridge without signing in again and repeats token acquisition to verify the persisted Az profile. It also verifies that startup leaves a running container untouched and starts a stopped one.
+It then recreates the bridge using `start-container.ps1 -Rebuild` without signing in again and repeats token acquisition to verify the persisted Az profile. It also verifies that startup leaves a running container untouched and starts a stopped one.
 
-**Destructive scope:** only the `clrpro-azurefx-e2e` Compose project, `clrpro-azurefx-e2e-bridge` container, `clrpro-azurefx-e2e` network, `clrpro-azurefx-e2e-az-profile` and `clrpro-azurefx-e2e-token-files` volumes, and the two `clrpro/azurefx-*:e2e` image tags are removed. Cleanup runs after success or failure. Regular sidecar resources, other Docker resources, and shared build caches are not pruned. Do not use these reserved test names for anything else.
+**Destructive scope:** only the `clrpro-azurefx-e2e` Compose project, `clrpro-azurefx-e2e-bridge` container, `clrpro-azurefx-e2e` network, `clrpro-azurefx-e2e-az-profile` and `clrpro-azurefx-e2e-token-files` volumes, and the three test image tags (`clrpro/azurefx-local-credential-bridge:e2e`, `clrpro/azurefx-managed-identity-demo:e2e`, `clrpro/azurefx-core163-demo:e2e`) are removed. Cleanup runs after success or failure. Regular sidecar resources, other Docker resources, and shared build caches are not pruned. Do not use these reserved test names for anything else.
 
 The secret is passed to the sign-in process over standard input, not in Docker arguments, Compose configuration, or the bridge's environment. Application containers receive only the expected tenant/client IDs and the token-file volume; they cannot authenticate directly with the service-principal secret. The saved Az profile can contain sensitive sign-in state until cleanup removes its volume.
 

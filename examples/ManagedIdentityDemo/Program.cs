@@ -1,12 +1,21 @@
 // Copyright (c) ClrCoder community. All Rights Reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
+#:package Azure.Identity@1.21.0
+#:package Azure.Core@1.63.0
+
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Azure.Core;
 using Azure.Identity;
 
-var credential = new ManagedIdentityCredential();
+Console.WriteLine(
+    $"Azure.Core {typeof(TokenCredential).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}; "
+    + $"Azure.Identity {Assembly.Load("Azure.Identity").GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}; "
+    + $"ManagedIdentityCredential from {typeof(ManagedIdentityCredential).Assembly.GetName().Name} "
+    + $"{typeof(ManagedIdentityCredential).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion}");
+var credential = new DefaultAzureCredential();
 var token = await credential.GetTokenAsync(
     new TokenRequestContext(["https://management.azure.com/.default"]))
     .ConfigureAwait(false);
